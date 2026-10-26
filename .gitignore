@@ -41,3 +41,15 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# =========================
+# Build (devkitPro)
+# =========================
+build/
+*.3dsx
+*.elf
+ctrQuake.smdh
+
+# Donnees de Quake (jamais dans le depot)
+id1/
+*.pak

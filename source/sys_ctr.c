@@ -353,7 +353,16 @@ int main (int argc, char **argv)
 	parms.membase = malloc (parms.memsize);
 	parms.basedir = ".";
 
-	COM_InitArgv (argc, argv);
+	// always log the console to qconsole.log (-condebug)
+	static char *ctr_argv[MAX_NUM_ARGVS];
+	int ctr_argc = 0, i;
+
+	ctr_argv[ctr_argc++] = (argc > 0) ? argv[0] : "ctrQuake";
+	for (i=1 ; i<argc && ctr_argc<MAX_NUM_ARGVS-1 ; i++)
+		ctr_argv[ctr_argc++] = argv[i];
+	ctr_argv[ctr_argc++] = "-condebug";
+
+	COM_InitArgv (ctr_argc, ctr_argv);
 
 	parms.argc = com_argc;
 	parms.argv = com_argv;

@@ -353,11 +353,11 @@ Con_DebugLog
 void Con_DebugLog(char *file, char *fmt, ...)
 {
     va_list argptr;
-    static char data[1024];
+    static char data[4096];	// same size as MAXPRINTMSG
     int fd;
 
     va_start(argptr, fmt);
-    vsprintf(data, fmt, argptr);
+    vsnprintf(data, sizeof(data), fmt, argptr);
     va_end(argptr);
     fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
     write(fd, data, strlen(data));

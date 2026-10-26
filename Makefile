@@ -43,6 +43,7 @@ ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard
 
 CFLAGS	:=	-g -Wall -O3 -mword-relocations \
 			-fomit-frame-pointer -ffunction-sections -ffast-math \
+			-std=gnu11 -fpermissive -fcommon \
 			$(ARCH)
 
 CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DGAME_HARD_LINKED -DREF_HARD_LINKED -D_3DS_CIA

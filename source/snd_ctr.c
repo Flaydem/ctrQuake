@@ -82,8 +82,8 @@ qboolean SNDDMA_Init(void)
 	}
   }
   
-  if (isDSP) audiobuffer = linearAlloc(DSP_BUFSIZE);
-  else audiobuffer = linearAlloc(CSND_BUFSIZE);
+  if (isDSP) audiobuffer = linearAlloc(DSP_BUFSIZE<<3);
+  else audiobuffer = linearAlloc(CSND_BUFSIZE<<1);
 
 	/* Fill the audio DMA information block */
 	shm = &sn;
