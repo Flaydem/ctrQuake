@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <3ds.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "ctr.h"
 #include "touch_ctr.h"
 
@@ -354,13 +355,19 @@ int main (int argc, char **argv)
 	parms.basedir = ".";
 
 	// always log the console to qconsole.log (-condebug)
+	// and always load the cs3ds mod on top of id1 (-game cs3ds)
 	static char *ctr_argv[MAX_NUM_ARGVS];
 	int ctr_argc = 0, i;
 
 	ctr_argv[ctr_argc++] = (argc > 0) ? argv[0] : "ctrQuake";
-	for (i=1 ; i<argc && ctr_argc<MAX_NUM_ARGVS-1 ; i++)
+	for (i=1 ; i<argc && ctr_argc<MAX_NUM_ARGVS-3 ; i++)
 		ctr_argv[ctr_argc++] = argv[i];
 	ctr_argv[ctr_argc++] = "-condebug";
+	ctr_argv[ctr_argc++] = "-game";
+	ctr_argv[ctr_argc++] = "cs3ds";
+
+	// the mod folder receives config.cfg and qconsole.log, so it must exist
+	mkdir ("cs3ds", 0777);
 
 	COM_InitArgv (ctr_argc, ctr_argv);
 
