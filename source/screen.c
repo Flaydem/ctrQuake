@@ -38,6 +38,7 @@ cvar_t		scr_showram = {"showram","1"};
 cvar_t		scr_showturtle = {"showturtle","0"};
 cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
+cvar_t		scr_showfps = {"scr_showfps","1"};
 
 qboolean	scr_initialized;		// ready to draw
 
@@ -321,6 +322,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_showpause);
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
+	Cvar_RegisterVariable (&scr_showfps);
 
 //
 // register our commands
@@ -377,6 +379,34 @@ void SCR_DrawTurtle (void)
 		return;
 
 	Draw_Pic (scr_vrect.x, scr_vrect.y, scr_turtle);
+}
+
+/*
+==============
+SCR_DrawFPS
+==============
+*/
+void SCR_DrawFPS (void)
+{
+	static double	oldtime;
+	static int		oldframecount;
+	static char		str[16];
+	double			elapsed;
+
+	if (!scr_showfps.value)
+		return;
+
+	// recompute twice per second, using host_framecount so that
+	// stereo 3D (two draws per frame) doesn't count frames twice
+	elapsed = realtime - oldtime;
+	if (elapsed >= 0.5 || elapsed < 0)
+	{
+		sprintf (str, "%3.0f fps", (host_framecount - oldframecount) / elapsed);
+		oldtime = realtime;
+		oldframecount = host_framecount;
+	}
+
+	Draw_String (vid.width - strlen(str)*8 - 8, 8, str);
 }
 
 /*
@@ -825,6 +855,7 @@ void SCR_DrawScreen (void) {
 		SCR_DrawRam ();
 		SCR_DrawNet ();
 		SCR_DrawTurtle ();
+		SCR_DrawFPS ();
 		SCR_DrawPause ();
 		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();
