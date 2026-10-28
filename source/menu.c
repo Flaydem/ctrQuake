@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void (*vid_menudrawfn)(void);
 void (*vid_menukeyfn)(int key);
 
-enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer, m_setup, m_net, m_options, m_video, m_keys, m_help, m_quit, m_serialconfig, m_modemconfig, m_lanconfig, m_gameoptions, m_search, m_slist} m_state;
+enum {m_none, m_main, m_singleplayer, m_load, m_save, m_multiplayer, m_setup, m_net, m_options, m_video, m_keys, m_help, m_quit, m_serialconfig, m_modemconfig, m_lanconfig, m_gameoptions, m_search, m_slist, m_settings} m_state;
 
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);
@@ -1357,6 +1357,95 @@ void M_Options_Key (int k)
 			options_cursor = 0;
 	}
 #endif
+}
+
+//=============================================================================
+/* SETTINGS MENU (CS3DS) : menu Parametres, ouvert par la commande menu_settings */
+
+#define	SETTINGS_ITEMS	1
+
+int		settings_cursor;
+
+void Host_WriteConfiguration (void);
+
+void M_Menu_Settings_f (void)
+{
+	key_dest = key_menu;
+	m_state = m_settings;
+	m_entersound = true;
+}
+
+void M_Settings_Adjust (int dir)
+{
+	S_LocalSound ("misc/menu3.wav");
+
+	switch (settings_cursor)
+	{
+	case 0:	// luminosite : gamma 1 = normal, 0.5 = le plus clair
+		v_gamma.value -= dir * 0.05;
+		if (v_gamma.value < 0.5)
+			v_gamma.value = 0.5;
+		if (v_gamma.value > 1)
+			v_gamma.value = 1;
+		Cvar_SetValue ("gamma", v_gamma.value);
+		break;
+	}
+}
+
+void M_Settings_Draw (void)
+{
+	char	str[8];
+	float	r;
+
+	M_PrintWhite ((320 - 10*8) / 2, 16, "PARAMETRES");
+
+	M_Print (16, 40, "Luminosite");
+	r = (1.0 - v_gamma.value) / 0.5;
+	M_DrawSlider (128, 40, r);
+	sprintf (str, "%3i%%", (int)(r * 100 + 0.5));
+	M_Print (224, 40, str);
+
+	M_PrintWhite (16, 160, "Haut/Bas : choisir");
+	M_PrintWhite (16, 168, "Gauche/Droite : regler");
+	M_PrintWhite (16, 176, "B : fermer");
+
+	// curseur clignotant devant la ligne choisie
+	M_DrawCharacter (0, 40 + settings_cursor*8, 12+((int)(realtime*4)&1));
+}
+
+void M_Settings_Key (int k)
+{
+	switch (k)
+	{
+	case K_ESCAPE:	// SELECT
+	case K_ENTER:	// START
+	case K_AUX2:	// B
+		// enregistre les reglages dans cs3ds/config.cfg, puis retour au jeu
+		Host_WriteConfiguration ();
+		key_dest = key_game;
+		m_state = m_none;
+		break;
+
+	case K_UPARROW:
+		S_LocalSound ("misc/menu1.wav");
+		if (--settings_cursor < 0)
+			settings_cursor = SETTINGS_ITEMS-1;
+		break;
+
+	case K_DOWNARROW:
+		S_LocalSound ("misc/menu1.wav");
+		if (++settings_cursor >= SETTINGS_ITEMS)
+			settings_cursor = 0;
+		break;
+
+	case K_LEFTARROW:
+		M_Settings_Adjust (-1);
+		break;
+
+	case K_RIGHTARROW:
+		M_Settings_Adjust (1);
+		break;
+	}
 }
 
 //=============================================================================
@@ -3097,6 +3186,7 @@ void M_Init (void)
 	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
+	Cmd_AddCommand ("menu_settings", M_Menu_Settings_f);
 }
 
 
@@ -3116,7 +3206,7 @@ void M_Draw (void)
 			S_ExtraUpdate ();
 			VID_LockBuffer ();
 		}
-		else
+		else if (m_state != m_settings)	// Parametres : on voit le jeu en reglant la luminosite
 			Draw_FadeScreen ();
 
 		scr_fullupdate = 0;
@@ -3201,6 +3291,10 @@ void M_Draw (void)
 
 	case m_slist:
 		M_ServerList_Draw ();
+		break;
+
+	case m_settings:
+		M_Settings_Draw ();
 		break;
 	}
 
@@ -3293,6 +3387,10 @@ void M_Keydown (int key)
 
 	case m_slist:
 		M_ServerList_Key (key);
+		return;
+
+	case m_settings:
+		M_Settings_Key (key);
 		return;
 	}
 }
