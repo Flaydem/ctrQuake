@@ -39,6 +39,7 @@ cvar_t		scr_showturtle = {"showturtle","0"};
 cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
 cvar_t		scr_showfps = {"scr_showfps","1"};
+cvar_t		scr_showspeed = {"scr_showspeed","1"};
 
 qboolean	scr_initialized;		// ready to draw
 
@@ -323,6 +324,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_centertime);
 	Cvar_RegisterVariable (&scr_printspeed);
 	Cvar_RegisterVariable (&scr_showfps);
+	Cvar_RegisterVariable (&scr_showspeed);
 
 //
 // register our commands
@@ -407,6 +409,31 @@ void SCR_DrawFPS (void)
 	}
 
 	Draw_String (vid.width - strlen(str)*8 - 8, 8, str);
+}
+
+/*
+==============
+SCR_DrawSpeed
+
+CS3DS: horizontal speed of the player, in units per second
+==============
+*/
+void SCR_DrawSpeed (void)
+{
+	static char	str[16];
+	float		*vel;
+
+	if (!scr_showspeed.value)
+		return;
+
+	// the network sends the velocity rounded to multiples of 16 u/s:
+	// in a local game, read the exact value on the server instead
+	vel = cl.velocity;
+	if (sv.active && cl.viewentity > 0 && cl.viewentity <= svs.maxclients)
+		vel = EDICT_NUM(cl.viewentity)->v.velocity;
+
+	sprintf (str, "%3.0f u/s", sqrt(vel[0]*vel[0] + vel[1]*vel[1]));
+	Draw_String (vid.width - strlen(str)*8 - 8, 16, str);
 }
 
 /*
@@ -856,6 +883,7 @@ void SCR_DrawScreen (void) {
 		SCR_DrawNet ();
 		SCR_DrawTurtle ();
 		SCR_DrawFPS ();
+		SCR_DrawSpeed ();
 		SCR_DrawPause ();
 		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();

@@ -166,6 +166,57 @@ SV_Accelerate
 */
 cvar_t	sv_maxspeed = {"sv_maxspeed", "320", false, true};
 cvar_t	sv_accelerate = {"sv_accelerate", "10"};
+cvar_t	sv_acceltime = {"sv_acceltime", "0.3"};	// CS3DS: seconds from 0 to max speed
+
+/*
+==============
+SV_PlayerMaxSpeed
+
+CS3DS: max speed set by the QuakeC in the player's ".float maxspeed" field
+(weapon, walk, crouch). 0 if the progs don't define it: Quake movement.
+==============
+*/
+float SV_PlayerMaxSpeed (edict_t *ent)
+{
+	eval_t	*val;
+
+	val = GetEdictFieldValue (ent, "maxspeed");
+	return val ? val->_float : 0;
+}
+
+/*
+==============
+SV_LinearAccelerate
+
+CS3DS: on the ground, the velocity moves in a straight line towards the
+wanted velocity: 0 to max speed (and max speed to 0) in sv_acceltime seconds
+==============
+*/
+void SV_LinearAccelerate (float maxspeed)
+{
+	float	speed, rate, step, dist;
+	vec3_t	delta;
+
+	speed = sqrt(velocity[0]*velocity[0] + velocity[1]*velocity[1]);
+	rate = (speed > maxspeed ? speed : maxspeed)
+		/ (sv_acceltime.value > 0.01 ? sv_acceltime.value : 0.01);
+	step = rate * host_frametime;
+
+	delta[0] = wishdir[0]*wishspeed - velocity[0];
+	delta[1] = wishdir[1]*wishspeed - velocity[1];
+	dist = sqrt(delta[0]*delta[0] + delta[1]*delta[1]);
+
+	if (dist <= step)
+	{
+		velocity[0] += delta[0];
+		velocity[1] += delta[1];
+	}
+	else
+	{
+		velocity[0] += delta[0] / dist * step;
+		velocity[1] += delta[1] / dist * step;
+	}
+}
 #if 0
 void SV_Accelerate (vec3_t wishvel)
 {
@@ -327,7 +378,7 @@ void SV_AirMove (void)
 {
 	int			i;
 	vec3_t		wishvel;
-	float		fmove, smove;
+	float		fmove, smove, maxspeed;
 
 	AngleVectors (sv_player->v.angles, forward, right, up);
 
@@ -348,7 +399,17 @@ void SV_AirMove (void)
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
-	if (wishspeed > sv_maxspeed.value)
+
+	maxspeed = SV_PlayerMaxSpeed (sv_player);
+	if (maxspeed > 0)
+	{	// CS3DS: how far the stick is pushed gives a fraction of the max speed
+		wishspeed /= MOVE_FULLSCALE;
+		if (wishspeed > 1)
+			wishspeed = 1;
+		wishspeed *= maxspeed;
+		VectorScale (wishdir, wishspeed, wishvel);
+	}
+	else if (wishspeed > sv_maxspeed.value)
 	{
 		VectorScale (wishvel, sv_maxspeed.value/wishspeed, wishvel);
 		wishspeed = sv_maxspeed.value;
@@ -360,8 +421,13 @@ void SV_AirMove (void)
 	}
 	else if ( (int)sv_player->v.flags & FL_ONGROUND )
 	{
-		SV_UserFriction ();
-		SV_Accelerate ();
+		if (maxspeed > 0)
+			SV_LinearAccelerate (maxspeed);
+		else
+		{
+			SV_UserFriction ();
+			SV_Accelerate ();
+		}
 	}
 	else
 	{	// not on ground, so little effect on velocity
@@ -440,6 +506,7 @@ void SV_ReadClientMove (usercmd_t *move)
 	int		i;
 	vec3_t	angle;
 	int		bits;
+	eval_t	*val;
 
 // read ping time
 	host_client->ping_times[host_client->num_pings%NUM_PING_TIMES]
@@ -461,6 +528,14 @@ void SV_ReadClientMove (usercmd_t *move)
 	bits = MSG_ReadByte ();
 	host_client->edict->v.button0 = bits & 1;
 	host_client->edict->v.button2 = (bits & 2)>>1;
+
+	// CS3DS: walk (+walk) and crouch (+duck), if the QuakeC defines these fields
+	val = GetEdictFieldValue (host_client->edict, "button3");
+	if (val)
+		val->_float = (bits & 4)>>2;
+	val = GetEdictFieldValue (host_client->edict, "button4");
+	if (val)
+		val->_float = (bits & 8)>>3;
 
 	i = MSG_ReadByte ();
 	if (i)

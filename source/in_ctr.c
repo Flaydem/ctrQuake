@@ -49,6 +49,21 @@ void IN_Commands (void)
 
 extern uint8_t keyboardToggled;
 
+#define CIRCLEPAD_DEADZONE 15
+#define CIRCLEPAD_MAX 140	// full tilt reads ~146 on Azahar, a bit more or less on real consoles
+
+// CS3DS: Circle Pad axis as -1..1, 0 at the edge of the deadzone and 1 at full tilt
+static float CirclePad_Axis (int v)
+{
+  float f = (abs(v) - CIRCLEPAD_DEADZONE) / (float)(CIRCLEPAD_MAX - CIRCLEPAD_DEADZONE);
+
+  if (f < 0)
+    f = 0;
+  if (f > 1)
+    f = 1;
+  return v < 0 ? -f : f;
+}
+
 void IN_Move (usercmd_t *cmd)
 {
 
@@ -76,14 +91,14 @@ void IN_Move (usercmd_t *cmd)
 
   hidCircleRead(&circlepad);
   //CirclePad deadzone to fix ghost movements
-  if(abs(circlepad.dy) > 15){
-    float y_value = circlepad.dy / 156.0f;
-    cmd->forwardmove += (y_value * circlepadsensitivity.value) * speed * cl_forwardspeed.value;
+  //CS3DS: analog movement, MOVE_FULLSCALE when the pad is pushed all the way
+  if(abs(circlepad.dy) > CIRCLEPAD_DEADZONE){
+    cmd->forwardmove += CirclePad_Axis(circlepad.dy) * speed * MOVE_FULLSCALE;
   }
-  if(abs(circlepad.dx) > 15){
+  if(abs(circlepad.dx) > CIRCLEPAD_DEADZONE){
     float x_value = circlepad.dx / 156.0f;
     if((in_strafe.state & 1) || (lookstrafe.value))
-      cmd->sidemove += (x_value * circlepadsensitivity.value) * speed * cl_sidespeed.value;
+      cmd->sidemove += CirclePad_Axis(circlepad.dx) * speed * MOVE_FULLSCALE;
     else
       cl.viewangles[YAW] -= m_side.value * x_value;
   }

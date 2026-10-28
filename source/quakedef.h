@@ -205,6 +205,10 @@ void	VID_UnlockBuffer (void);
 
 #define	SOUND_CHANNELS		8
 
+// CS3DS: forward/side move value sent when the Circle Pad is pushed all the way
+// (the server turns it into a fraction of the player's max speed)
+#define	MOVE_FULLSCALE		400
+
 // This makes anyone on id's net privileged
 // Use for multiplayer testing only - VERY dangerous!!!
 // #define IDGODS

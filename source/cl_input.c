@@ -51,6 +51,7 @@ kbutton_t	in_left, in_right, in_forward, in_back;
 kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
 kbutton_t	in_up, in_down;
+kbutton_t	in_walk, in_duck;	// CS3DS
 
 int			in_impulse;
 
@@ -155,6 +156,10 @@ void IN_UseDown (void) {KeyDown(&in_use);}
 void IN_UseUp (void) {KeyUp(&in_use);}
 void IN_JumpDown (void) {KeyDown(&in_jump);}
 void IN_JumpUp (void) {KeyUp(&in_jump);}
+void IN_WalkDown (void) {KeyDown(&in_walk);}
+void IN_WalkUp (void) {KeyUp(&in_walk);}
+void IN_DuckDown (void) {KeyDown(&in_duck);}
+void IN_DuckUp (void) {KeyUp(&in_duck);}
 
 void IN_Impulse (void) {in_impulse=atoi(Cmd_Argv(1));}
 
@@ -369,6 +374,15 @@ void CL_SendMove (usercmd_t *cmd)
 		bits |= 2;
 	in_jump.state &= ~2;
 
+	// CS3DS: walk and crouch (read by the QuakeC as button3 and button4)
+	if (in_walk.state & 3)
+		bits |= 4;
+	in_walk.state &= ~2;
+
+	if (in_duck.state & 3)
+		bits |= 8;
+	in_duck.state &= ~2;
+
     MSG_WriteByte (&buf, bits);
 
     MSG_WriteByte (&buf, in_impulse);
@@ -438,6 +452,10 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-use", IN_UseUp);
 	Cmd_AddCommand ("+jump", IN_JumpDown);
 	Cmd_AddCommand ("-jump", IN_JumpUp);
+	Cmd_AddCommand ("+walk", IN_WalkDown);
+	Cmd_AddCommand ("-walk", IN_WalkUp);
+	Cmd_AddCommand ("+duck", IN_DuckDown);
+	Cmd_AddCommand ("-duck", IN_DuckUp);
 	Cmd_AddCommand ("impulse", IN_Impulse);
 	Cmd_AddCommand ("+klook", IN_KLookDown);
 	Cmd_AddCommand ("-klook", IN_KLookUp);
