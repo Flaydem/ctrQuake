@@ -40,6 +40,7 @@ cvar_t		scr_showpause = {"showpause","1"};
 cvar_t		scr_printspeed = {"scr_printspeed","8"};
 cvar_t		scr_showfps = {"scr_showfps","1"};
 cvar_t		scr_showspeed = {"scr_showspeed","1"};
+cvar_t		scr_hud = {"scr_hud","1"};	// CS3DS: health and ammo, see SCR_DrawHud
 
 qboolean	scr_initialized;		// ready to draw
 
@@ -325,6 +326,7 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_printspeed);
 	Cvar_RegisterVariable (&scr_showfps);
 	Cvar_RegisterVariable (&scr_showspeed);
+	Cvar_RegisterVariable (&scr_hud);
 
 //
 // register our commands
@@ -434,6 +436,35 @@ void SCR_DrawSpeed (void)
 
 	sprintf (str, "%3.0f u/s", sqrt(vel[0]*vel[0] + vel[1]*vel[1]));
 	Draw_String (vid.width - strlen(str)*8 - 8, 16, str);
+}
+
+/*
+==============
+SCR_DrawHud
+
+CS3DS: small CS-like HUD replacing Quake's status bar (use viewsize 120):
+health at the bottom left, magazine / reserve at the bottom right
+==============
+*/
+void SCR_DrawHud (void)
+{
+	static char	str[32];
+	int			y;
+
+	if (!scr_hud.value || cls.state != ca_connected || cl.stats[STAT_HEALTH] <= 0)
+		return;
+
+	y = vid.height - 16;
+
+	// "PV" in the gold alternate charset (+128), then the value
+	Draw_Character (8, y, 'P' + 128);
+	Draw_Character (16, y, 'V' + 128);
+	sprintf (str, "%i", cl.stats[STAT_HEALTH]);
+	Draw_String (32, y, str);
+
+	// STAT_AMMO = magazine (currentammo), STAT_SHELLS = reserve (ammo_shells)
+	sprintf (str, "%i / %i", cl.stats[STAT_AMMO], cl.stats[STAT_SHELLS]);
+	Draw_String (vid.width - strlen(str)*8 - 8, y, str);
 }
 
 /*
@@ -884,6 +915,7 @@ void SCR_DrawScreen (void) {
 		SCR_DrawTurtle ();
 		SCR_DrawFPS ();
 		SCR_DrawSpeed ();
+		SCR_DrawHud ();
 		SCR_DrawPause ();
 		SCR_CheckDrawCenterString ();
 		Sbar_Draw ();
