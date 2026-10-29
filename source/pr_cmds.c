@@ -1632,6 +1632,57 @@ void PF_setspawnparms (void)
 
 /*
 ==============
+PF_spawnbot
+
+CS3DS : cree un bot, un joueur sans connexion reseau, et renvoie son entite
+(world si toutes les places de joueur sont prises, voir "maxplayers").
+Le QuakeC appelle ensuite lui-meme ClientConnect et PutClientInServer, puis
+pilote le bot avec v_angle, ses boutons et le champ .movement (sv_user.c).
+
+entity(string name) spawnbot = #79;
+==============
+*/
+void PF_spawnbot (void)
+{
+	int			i;
+	client_t	*client;
+	edict_t		*ent;
+
+	for (i=0, client = svs.clients ; i<svs.maxclients ; i++, client++)
+		if (!client->active)
+			break;
+	if (i == svs.maxclients)
+	{
+		RETURN_EDICT(sv.edicts);
+		return;
+	}
+
+	memset (client, 0, sizeof(*client));	// netconnection = NULL : c'est un bot
+	strncpy (client->name, G_STRING(OFS_PARM0), sizeof(client->name) - 1);
+	client->active = true;
+	client->spawned = true;
+	client->message.data = client->msgbuf;
+	client->message.maxsize = sizeof(client->msgbuf);
+	client->message.allowoverflow = true;
+	client->old_frags = -999999;	// son score sera annonce
+	net_activeconnections++;
+
+	// entite remise a zero, comme pour un joueur qui arrive (Host_Spawn_f)
+	ent = client->edict = EDICT_NUM(i + 1);
+	memset (&ent->v, 0, progs->entityfields * 4);
+	ent->v.colormap = NUM_FOR_EDICT(ent);
+	ent->v.netname = client->name - pr_strings;
+
+	// son nom dans le tableau des scores de tout le monde
+	MSG_WriteByte (&sv.reliable_datagram, svc_updatename);
+	MSG_WriteByte (&sv.reliable_datagram, i);
+	MSG_WriteString (&sv.reliable_datagram, client->name);
+
+	RETURN_EDICT(ent);
+}
+
+/*
+==============
 PF_changelevel
 ==============
 */
@@ -1926,7 +1977,8 @@ PF_precache_model,
 PF_precache_sound,		// precache_sound2 is different only for qcc
 PF_precache_file,
 
-PF_setspawnparms
+PF_setspawnparms,
+PF_spawnbot		// #79, CS3DS
 };
 
 builtin_t *pr_builtins = pr_builtin;

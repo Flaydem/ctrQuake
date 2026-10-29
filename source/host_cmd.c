@@ -86,6 +86,11 @@ void Host_Status_f (void)
 	{
 		if (!client->active)
 			continue;
+		if (!client->netconnection)	// CS3DS : bot
+		{
+			print ("#%-2u %-16.16s  %3i  bot\n", j+1, client->name, (int)client->edict->v.frags);
+			continue;
+		}
 		seconds = (int)(net_time - client->netconnection->connecttime);
 		minutes = seconds / 60;
 		if (minutes)
@@ -1879,11 +1884,48 @@ void Host_Stopdemo_f (void)
 
 /*
 ==================
+Host_Set_f
+
+CS3DS : "set nom valeur" change une variable, et la cree si elle n'existe pas.
+Sert aux reglages propres au jeu (regles de match, bots), lus en QuakeC avec cvar().
+==================
+*/
+void Host_Set_f (void)
+{
+	cvar_t	*var;
+	char	*name;
+
+	if (Cmd_Argc () != 3)
+	{
+		Con_Printf ("set <variable> <valeur>\n");
+		return;
+	}
+	if (Cvar_FindVar (Cmd_Argv (1)))
+	{
+		Cvar_Set (Cmd_Argv (1), Cmd_Argv (2));
+		return;
+	}
+	if (Cmd_Exists (Cmd_Argv (1)))
+	{
+		Con_Printf ("set : %s est une commande\n", Cmd_Argv (1));
+		return;
+	}
+	var = Z_Malloc (sizeof (cvar_t));
+	name = Z_Malloc (strlen (Cmd_Argv (1)) + 1);
+	strcpy (name, Cmd_Argv (1));
+	var->name = name;
+	var->string = Cmd_Argv (2);	// recopiee par Cvar_RegisterVariable
+	Cvar_RegisterVariable (var);
+}
+
+/*
+==================
 Host_InitCommands
 ==================
 */
 void Host_InitCommands (void)
 {
+	Cmd_AddCommand ("set", Host_Set_f);	// CS3DS
 	Cmd_AddCommand ("status", Host_Status_f);
 	Cmd_AddCommand ("quit", Host_Quit_f);
 	Cmd_AddCommand ("god", Host_God_f);

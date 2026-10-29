@@ -669,6 +669,31 @@ nextmsg:
 
 /*
 ==================
+SV_BotCommand
+
+CS3DS : un bot (joueur sans connexion, voir PF_spawnbot) n'envoie pas de
+message reseau. Son deplacement est lu dans le champ .movement de son entite
+(avant, cote, haut), rempli par le QuakeC, comme les touches d'un joueur.
+Ses angles (v_angle) et ses boutons sont ecrits directement par le QuakeC.
+==================
+*/
+void SV_BotCommand (void)
+{
+	eval_t	*val;
+
+	memset (&host_client->cmd, 0, sizeof(host_client->cmd));
+	VectorCopy (sv_player->v.v_angle, host_client->cmd.viewangles);
+	val = GetEdictFieldValue (sv_player, "movement");
+	if (val)
+	{
+		host_client->cmd.forwardmove = val->vector[0];
+		host_client->cmd.sidemove = val->vector[1];
+		host_client->cmd.upmove = val->vector[2];
+	}
+}
+
+/*
+==================
 SV_RunClients
 ==================
 */
@@ -683,7 +708,9 @@ void SV_RunClients (void)
 
 		sv_player = host_client->edict;
 
-		if (!SV_ReadClientMessage ())
+		if (!host_client->netconnection)
+			SV_BotCommand ();	// CS3DS : bot, commandes donnees par le QuakeC
+		else if (!SV_ReadClientMessage ())
 		{
 			SV_DropClient (false);	// client misbehaved...
 			continue;

@@ -190,8 +190,8 @@ void	Host_FindMaxClients (void)
 		svs.maxclients = MAX_SCOREBOARD;
 
 	svs.maxclientslimit = svs.maxclients;
-	if (svs.maxclientslimit < 4)
-		svs.maxclientslimit = 4;
+	if (svs.maxclientslimit < 10)	// CS3DS : 10 au lieu de 4, pour jouer jusqu'en 5v5 avec des bots
+		svs.maxclientslimit = 10;
 	svs.clients = Hunk_AllocName (svs.maxclientslimit*sizeof(client_t), "clients");
 
 	if (svs.maxclients > 1)
@@ -426,7 +426,7 @@ void Host_ShutdownServer(qboolean crash)
 		count = 0;
 		for (i=0, host_client = svs.clients ; i<svs.maxclients ; i++, host_client++)
 		{
-			if (host_client->active && host_client->message.cursize)
+			if (host_client->active && host_client->message.cursize && host_client->netconnection)	// CS3DS : pas les bots
 			{
 				if (NET_CanSendMessage (host_client->netconnection))
 				{

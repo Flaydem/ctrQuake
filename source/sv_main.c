@@ -831,6 +831,12 @@ void SV_SendClientMessages (void)
 		if (!host_client->active)
 			continue;
 
+		if (!host_client->netconnection)	// CS3DS : bot, personne a qui envoyer
+		{
+			SZ_Clear (&host_client->message);
+			continue;
+		}
+
 		if (host_client->spawned)
 		{
 			if (!SV_SendClientDatagram (host_client))
@@ -1059,6 +1065,15 @@ void SV_SpawnServer (char *server)
 
 	Con_DPrintf ("SpawnServer: %s\n",server);
 	svs.changelevel_issued = false;		// now safe to issue another
+
+// CS3DS : les bots ne passent pas d'une map a l'autre (le QuakeC les recree)
+	for (i=0,host_client = svs.clients ; i<svs.maxclients ; i++, host_client++)
+		if (host_client->active && !host_client->netconnection)
+		{
+			host_client->active = false;
+			host_client->name[0] = 0;
+			net_activeconnections--;
+		}
 
 //
 // tell all connected clients that we are going to a new level
