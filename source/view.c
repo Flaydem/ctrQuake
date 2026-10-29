@@ -61,6 +61,26 @@ cvar_t	v_idlescale = {"v_idlescale", "0", false};
 cvar_t	crosshair = {"crosshair", "0", true};
 cvar_t	cl_crossx = {"cl_crossx", "0", false};
 cvar_t	cl_crossy = {"cl_crossy", "0", false};
+cvar_t	crosshaircolor = {"crosshaircolor", "15", true};	// CS3DS: couleur de la palette (15 = blanc)
+
+/*
+==============
+V_DrawCrosshair
+
+CS3DS: viseur facon CS, 4 traits de 4 pixels autour du centre, avec un ecart
+==============
+*/
+void V_DrawCrosshair (void)
+{
+	int x = scr_vrect.x + scr_vrect.width/2 + cl_crossx.value;
+	int y = scr_vrect.y + scr_vrect.height/2 + cl_crossy.value;
+	int c = (int)crosshaircolor.value & 255;
+
+	Draw_Fill (x - 6, y, 4, 1, c);	// gauche
+	Draw_Fill (x + 3, y, 4, 1, c);	// droite
+	Draw_Fill (x, y - 6, 1, 4, c);	// haut
+	Draw_Fill (x, y + 3, 1, 4, c);	// bas
+}
 
 cvar_t	gl_cshiftpercent = {"gl_cshiftpercent", "100", false};
 
@@ -1034,9 +1054,8 @@ void V_RenderView (void)
 
         R_RenderView ();
         if (crosshair.value)
-			Draw_Character (scr_vrect.x + scr_vrect.width/2 + cl_crossx.value, 
-				scr_vrect.y + scr_vrect.height/2 + cl_crossy.value, '+');
-	
+			V_DrawCrosshair ();
+
         VID_SetBuffer(0);
 	}
 	else
@@ -1045,8 +1064,7 @@ void V_RenderView (void)
 	}
 		
 	if (crosshair.value)
-		Draw_Character (scr_vrect.x + scr_vrect.width/2 + cl_crossx.value, 
-			scr_vrect.y + scr_vrect.height/2 + cl_crossy.value, '+');
+		V_DrawCrosshair ();
 }
 
 //============================================================================
@@ -1077,6 +1095,7 @@ void V_Init (void)
 
 	Cvar_RegisterVariable (&v_idlescale);
 	Cvar_RegisterVariable (&crosshair);
+	Cvar_RegisterVariable (&crosshaircolor);
 	Cvar_RegisterVariable (&cl_crossx);
 	Cvar_RegisterVariable (&cl_crossy);
 	Cvar_RegisterVariable (&gl_cshiftpercent);
