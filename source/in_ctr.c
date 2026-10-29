@@ -24,7 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include <3ds.h>
+#include <sys/socket.h>
 #include "ctr.h"
+#include "net_udp.h"
 
 circlePosition cstick;
 circlePosition circlepad;
@@ -33,10 +35,72 @@ touchPosition oldtouch, touch;
 cvar_t  csensitivity = {"csensitivity","3", true};
 cvar_t  circlepadsensitivity = {"circlepadsensitivity","10.0", true};
 
+// CS3DS: PC mouse in the emulator ---------------------------------------
+// Azahar never passes mouse motion to the 3DS. scripts/souris_azahar.ps1 reads
+// it on the PC and sends it over UDP (the emulated 3DS uses the PC's network):
+// 5-byte packets, dx and dy as little-endian int16, then the buttons (1 = left).
+// Only enabled on an emulator: Citra-based emulators answer
+// svcGetSystemInfo(0x20000, 0) (Citra with 1, Azahar with 2), a real console fails.
+#define NETMOUSE_PORT 27999
+cvar_t  netmouse_sensitivity = {"netmouse_sensitivity","2.5", true};	// like CS (x 0.022 degree per pixel)
+static int netmouse_socket = -1;
+static qboolean netmouse_checked;
+static int netmouse_buttons;
+
+static void NetMouse_Init (void)
+{
+  s64 citra = 0;
+  Result res;
+
+  netmouse_checked = true;
+  res = svcGetSystemInfo(&citra, 0x20000, 0);
+  if (R_FAILED(res) || citra == 0)	// Citra answers 1, Azahar 2, a console fails
+  {
+    Con_Printf ("Souris PC : desactivee (console, %08lx %lld)\n", res, citra);
+    return;
+  }
+  netmouse_socket = UDP_OpenSocket (NETMOUSE_PORT);
+  if (netmouse_socket != -1)
+    Con_Printf ("Souris PC : en ecoute sur le port %i\n", NETMOUSE_PORT);
+  else
+    Con_Printf ("Souris PC : impossible d'ouvrir le port %i\n", NETMOUSE_PORT);
+}
+
+static void NetMouse_Move (void)
+{
+  unsigned char packet[8];
+  int dx = 0, dy = 0, buttons = netmouse_buttons;
+
+  if (!netmouse_checked)
+    NetMouse_Init ();	// here and not in IN_Init: the network must be up
+  if (netmouse_socket == -1)
+    return;
+
+  while (recv (netmouse_socket, packet, sizeof(packet), 0) >= 5)
+  {
+    dx += (short)(packet[0] | packet[1] << 8);
+    dy += (short)(packet[2] | packet[3] << 8);
+    buttons = packet[4];
+  }
+
+  if ((buttons ^ netmouse_buttons) & 1)
+    Key_Event (K_MOUSE1, (buttons & 1) != 0);
+  if ((buttons ^ netmouse_buttons) & 2)
+    Key_Event (K_MOUSE2, (buttons & 2) != 0);
+  netmouse_buttons = buttons;
+
+  if (key_dest != key_game || (!dx && !dy))
+    return;
+  cl.viewangles[YAW] -= dx * netmouse_sensitivity.value * 0.022;
+  cl.viewangles[PITCH] += dy * netmouse_sensitivity.value * 0.022;
+  V_StopPitchDrift ();
+}
+
 void IN_Init (void)
 {
   Cvar_RegisterVariable (&csensitivity);
   Cvar_RegisterVariable (&circlepadsensitivity);
+  Cvar_RegisterVariable (&netmouse_sensitivity);
 }
 
 void IN_Shutdown (void)
@@ -88,6 +152,8 @@ void IN_Move (usercmd_t *cmd)
     oldtouch = touch;
     V_StopPitchDrift ();
   }
+
+  NetMouse_Move ();
 
   hidCircleRead(&circlepad);
   //CirclePad deadzone to fix ghost movements
