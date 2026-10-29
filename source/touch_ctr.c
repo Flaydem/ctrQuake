@@ -115,7 +115,9 @@ void Touch_Update(){
     tick = Sys_FloatTime();
   }
 
-  if(hidKeysUp() & KEY_TOUCH){
+  //CS3DS: only a short press is a tap, so that releasing the stylus
+  //(or the mouse in Azahar) after aiming doesn't press a button
+  if(hidKeysUp() & KEY_TOUCH && Sys_FloatTime() - tick < 0.3){
       Touch_ProcessTap();
   }
 }
