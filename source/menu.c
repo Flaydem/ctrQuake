@@ -1362,7 +1362,9 @@ void M_Options_Key (int k)
 //=============================================================================
 /* SETTINGS MENU (CS3DS) : menu Parametres, ouvert par la commande menu_settings */
 
-#define	SETTINGS_ITEMS	1
+#define	SETTINGS_ITEMS	2
+
+static char *skill_names[4] = {"facile", "normal", "difficile", "expert"};
 
 int		settings_cursor;
 
@@ -1389,6 +1391,16 @@ void M_Settings_Adjust (int dir)
 			v_gamma.value = 1;
 		Cvar_SetValue ("gamma", v_gamma.value);
 		break;
+	case 1:	// niveau des bots (variable bot_skill du QuakeC, game/fight.qc)
+		{
+			int s = (int)Cvar_VariableValue ("bot_skill") + dir;
+			if (s < 0)
+				s = 0;
+			if (s > 3)
+				s = 3;
+			Cvar_SetValue ("bot_skill", s);
+		}
+		break;
 	}
 }
 
@@ -1404,6 +1416,12 @@ void M_Settings_Draw (void)
 	M_DrawSlider (128, 40, r);
 	sprintf (str, "%3i%%", (int)(r * 100 + 0.5));
 	M_Print (224, 40, str);
+
+	M_Print (16, 48, "Niveau des bots");
+	r = Cvar_VariableValue ("bot_skill");
+	if (r < 0) r = 0;
+	if (r > 3) r = 3;
+	M_Print (152, 48, skill_names[(int)r]);
 
 	M_PrintWhite (16, 160, "Haut/Bas : choisir");
 	M_PrintWhite (16, 168, "Gauche/Droite : regler");
