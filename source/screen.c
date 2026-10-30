@@ -446,15 +446,48 @@ CS3DS: small CS-like HUD replacing Quake's status bar (use viewsize 120):
 health at the bottom left, magazine / reserve at the bottom right
 ==============
 */
+// CS3DS : texte en or (deuxieme jeu de caracteres de Quake, +128)
+static void SCR_DrawGold (int x, int y, char *s)
+{
+	for ( ; *s ; s++, x += 8)
+		Draw_Character (x, y, *s | 128);
+}
+
 void SCR_DrawHud (void)
 {
 	static char	str[32];
-	int			y;
+	int			y, t;
 
-	if (!scr_hud.value || cls.state != ca_connected || cl.stats[STAT_HEALTH] <= 0)
+	if (!scr_hud.value || cls.state != ca_connected)
 		return;
 
+	// CS3DS : en bas au centre (le haut est pris par les messages), score et chrono de la manche (game/match.qc
+	// les envoie dans ammo_nails, ammo_cells, ammo_rockets et des bits de items)
+	sprintf (str, "T %i - %i CT", cl.stats[STAT_NAILS], cl.stats[STAT_CELLS]);
+	Draw_String ((vid.width - strlen(str)*8) / 2, vid.height - 28, str);
+	t = cl.stats[STAT_ROCKETS];
+	if (cl.items & IT_KEY1)			// bombe posee
+	{
+		sprintf (str, "BOMBE %i:%02i", t / 60, t % 60);
+		SCR_DrawGold ((vid.width - strlen(str)*8) / 2, vid.height - 16, str);
+	}
+	else if (cl.items & IT_NAILGUN)	// gel du debut de manche
+	{
+		sprintf (str, "Depart dans %i", t);
+		Draw_String ((vid.width - strlen(str)*8) / 2, vid.height - 16, str);
+	}
+	else
+	{
+		sprintf (str, "%i:%02i", t / 60, t % 60);
+		Draw_String ((vid.width - strlen(str)*8) / 2, vid.height - 16, str);
+	}
+
+	if (cl.stats[STAT_HEALTH] <= 0)
+		return;		// spectateur : pas de PV ni de munitions
+
 	y = vid.height - 16;
+	if (cl.items & IT_KEY2)			// ce joueur porte la bombe
+		SCR_DrawGold (8, y - 12, "BOMBE");
 
 	// "PV" in the gold alternate charset (+128), then the value
 	Draw_Character (8, y, 'P' + 128);
