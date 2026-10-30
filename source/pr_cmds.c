@@ -924,14 +924,19 @@ char	pr_string_temp[128];
 
 void PF_ftos (void)
 {
+	// CS3DS : 8 zones de texte utilisees a tour de role, pour pouvoir mettre
+	// plusieurs ftos dans un meme message (bprint ("a ", ftos(x), " b ", ftos(y)))
+	static char	bufs[8][32];
+	static int	next;
+	char	*s = bufs[next++ & 7];
 	float	v;
 	v = G_FLOAT(OFS_PARM0);
-	
+
 	if (v == (int)v)
-		sprintf (pr_string_temp, "%d",(int)v);
+		sprintf (s, "%d",(int)v);
 	else
-		sprintf (pr_string_temp, "%5.1f",v);
-	G_INT(OFS_RETURN) = pr_string_temp - pr_strings;
+		sprintf (s, "%5.1f",v);
+	G_INT(OFS_RETURN) = s - pr_strings;
 }
 
 void PF_fabs (void)
@@ -1682,6 +1687,144 @@ void PF_spawnbot (void)
 }
 
 /*
+==============================================================================
+
+CS3DS : fichiers texte pour le QuakeC (waypoints des bots), avec les memes
+numeros que l'extension FRIK_FILE des autres moteurs Quake.
+
+float(string name, float mode) fopen = #110;	// 0 lire, 1 ajouter, 2 ecrire ; -1 si echec
+void(float h) fclose = #111;
+string(float h) fgets = #112;					// ligne suivante, "" a la fin du fichier
+void(float h, string s, ...) fputs = #113;
+string(string s, ...) strcat = #115;			// textes mis bout a bout (temporaire)
+float(string s) stof = #81;
+vector(string s) stov = #117;
+
+En lecture, un fichier du dossier du jeu (ex. cs3ds/maps/desert.way, ecrit
+par l'editeur de waypoints) passe avant celui du pak0.pak.
+==============================================================================
+*/
+
+#define MAX_QC_FILES	4
+static FILE	*qc_files[MAX_QC_FILES];
+static int	qc_files_left[MAX_QC_FILES];	// octets restants (fichier dans un pak), -1 sinon
+
+void PF_fopen (void)
+{
+	char	*name, path[MAX_OSPATH], *s;
+	int		mode, h;
+
+	name = G_STRING(OFS_PARM0);
+	mode = (int)G_FLOAT(OFS_PARM1);
+	G_FLOAT(OFS_RETURN) = -1;
+	if (strstr (name, ".."))
+		return;
+	for (h=0 ; h<MAX_QC_FILES ; h++)
+		if (!qc_files[h])
+			break;
+	if (h == MAX_QC_FILES)
+	{
+		Con_Printf ("fopen : trop de fichiers ouverts\n");
+		return;
+	}
+
+	snprintf (path, sizeof(path), "%s/%s", com_gamedir, name);
+	qc_files_left[h] = -1;
+	if (mode == 0)
+	{
+		qc_files[h] = fopen (path, "rb");
+		if (!qc_files[h])
+		{
+			qc_files_left[h] = COM_FOpenFile (name, &qc_files[h]);	// dans un pak
+			if (qc_files_left[h] < 0)
+				qc_files[h] = NULL;
+		}
+	}
+	else
+	{
+		for (s = path + strlen(com_gamedir) + 1 ; *s ; s++)	// cree les sous-dossiers
+			if (*s == '/')
+			{
+				*s = 0;
+				Sys_mkdir (path);
+				*s = '/';
+			}
+		qc_files[h] = fopen (path, mode == 1 ? "ab" : "wb");
+	}
+	if (qc_files[h])
+		G_FLOAT(OFS_RETURN) = h;
+}
+
+static FILE *PF_QCFile (int h)
+{
+	if (h < 0 || h >= MAX_QC_FILES || !qc_files[h])
+	{
+		Con_Printf ("fichier QuakeC %i non ouvert\n", h);
+		return NULL;
+	}
+	return qc_files[h];
+}
+
+void PF_fclose (void)
+{
+	int		h = (int)G_FLOAT(OFS_PARM0);
+
+	if (PF_QCFile (h))
+	{
+		fclose (qc_files[h]);
+		qc_files[h] = NULL;
+	}
+}
+
+void PF_fgets (void)
+{
+	static char	line[256];
+	int		h = (int)G_FLOAT(OFS_PARM0), c, n = 0;
+	FILE	*f = PF_QCFile (h);
+
+	while (f && qc_files_left[h] != 0 && (c = fgetc (f)) != EOF)
+	{
+		if (qc_files_left[h] > 0)
+			qc_files_left[h]--;
+		if (c == '\n')
+			break;
+		if (c != '\r' && n < (int)sizeof(line) - 1)
+			line[n++] = c;
+	}
+	line[n] = 0;
+	G_INT(OFS_RETURN) = line - pr_strings;
+}
+
+void PF_fputs (void)
+{
+	FILE	*f = PF_QCFile ((int)G_FLOAT(OFS_PARM0));
+
+	if (f)
+		fputs (PF_VarString(1), f);
+}
+
+void PF_strcat (void)
+{
+	G_INT(OFS_RETURN) = PF_VarString(0) - pr_strings;	// texte temporaire : a utiliser tout de suite
+}
+
+void PF_stof (void)
+{
+	G_FLOAT(OFS_RETURN) = atof (G_STRING(OFS_PARM0));
+}
+
+void PF_stov (void)
+{
+	char	*s = G_STRING(OFS_PARM0);
+	float	*v = G_VECTOR(OFS_RETURN);
+
+	v[0] = v[1] = v[2] = 0;
+	if (*s == '\'')
+		s++;
+	sscanf (s, "%f %f %f", &v[0], &v[1], &v[2]);
+}
+
+/*
 ==============
 PF_changelevel
 ==============
@@ -1978,7 +2121,20 @@ PF_precache_sound,		// precache_sound2 is different only for qcc
 PF_precache_file,
 
 PF_setspawnparms,
-PF_spawnbot		// #79, CS3DS
+PF_spawnbot,	// #79, CS3DS
+PF_Fixme,		// #80
+PF_stof,		// #81, CS3DS (FRIK_FILE)
+PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme,	// #82 a #91
+PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme,	// #92 a #101
+PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme, PF_Fixme,						// #102 a #109
+PF_fopen,		// #110, CS3DS (FRIK_FILE)
+PF_fclose,		// #111
+PF_fgets,		// #112
+PF_fputs,		// #113
+PF_Fixme,		// #114
+PF_strcat,		// #115
+PF_Fixme,		// #116
+PF_stov			// #117
 };
 
 builtin_t *pr_builtins = pr_builtin;

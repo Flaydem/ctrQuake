@@ -1208,10 +1208,12 @@ void SV_SpawnServer (char *server)
 	SV_CreateBaseline ();
 
 // send serverinfo to all connected clients
+	// (CS3DS : pas aux bots, qui ont pu etre crees pendant les deux images
+	// ci-dessus : ils resteraient "pas encore entres" et ne bougeraient pas)
 	for (i=0,host_client = svs.clients ; i<svs.maxclients ; i++, host_client++)
-		if (host_client->active)
+		if (host_client->active && host_client->netconnection)
 			SV_SendServerinfo (host_client);
-	
+
 	Con_DPrintf ("Server spawned.\n");
 }
 

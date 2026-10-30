@@ -379,7 +379,7 @@ void PR_ExecuteProgram (func_t fnum)
 	
 	f = &pr_functions[fnum];
 
-	runaway = 100000;
+	runaway = 5000000;	// CS3DS : 100000 dans Quake ; trop peu pour charger les waypoints ou calculer un chemin (A*)
 	pr_trace = false;
 
 // make a stack frame
