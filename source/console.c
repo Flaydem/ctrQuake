@@ -354,14 +354,17 @@ void Con_DebugLog(char *file, char *fmt, ...)
 {
     va_list argptr;
     static char data[4096];	// same size as MAXPRINTMSG
-    int fd;
+    static int fd = -1;
 
     va_start(argptr, fmt);
     vsnprintf(data, sizeof(data), fmt, argptr);
     va_end(argptr);
-    fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    write(fd, data, strlen(data));
-    close(fd);
+    // 3DS : ouvrir et refermer le fichier sur la carte SD a chaque ligne prenait
+    // des dizaines de millisecondes (a-coup a chaque message) : on l'ouvre une fois
+    if (fd < 0)
+        fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd >= 0)
+        write(fd, data, strlen(data));
 }
 
 
