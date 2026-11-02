@@ -482,12 +482,18 @@ void SCR_DrawHud (void)
 		Draw_String ((vid.width - strlen(str)*8) / 2, vid.height - 16, str);
 	}
 
+	// CS3DS : l'argent (game/economy.qc l'envoie dans STAT_MONEY), au-dessus des PV,
+	// visible aussi en spectateur
+	y = vid.height - 16;
+	Draw_Character (8, y - 12, '$' + 128);
+	sprintf (str, "%i", cl.stats[STAT_MONEY]);
+	Draw_String (24, y - 12, str);
+
 	if (cl.stats[STAT_HEALTH] <= 0)
 		return;		// spectateur : pas de PV ni de munitions
 
-	y = vid.height - 16;
 	if (cl.items & IT_KEY2)			// ce joueur porte la bombe
-		SCR_DrawGold (8, y - 12, "BOMBE");
+		SCR_DrawGold (8, y - 24, "BOMBE");
 
 	// "PV" in the gold alternate charset (+128), then the value
 	Draw_Character (8, y, 'P' + 128);

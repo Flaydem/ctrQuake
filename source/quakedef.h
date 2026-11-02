@@ -132,6 +132,7 @@ void	VID_UnlockBuffer (void);
 #define	STAT_TOTALMONSTERS	12
 #define	STAT_SECRETS		13		// bumped on client side by svc_foundsecret
 #define	STAT_MONSTERS		14		// bumped by svc_killedmonster
+#define	STAT_MONEY			16		// CS3DS : argent du joueur (game/economy.qc, svc_updatestat)
 
 // stock defines
 

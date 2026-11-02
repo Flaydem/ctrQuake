@@ -38,7 +38,8 @@ char *PF_VarString (int	first)
 	out[0] = 0;
 	for (i=first ; i<pr_argc ; i++)
 	{
-		strcat (out, G_STRING((OFS_PARM0+i*3)));
+		// CS3DS : sans depasser la taille du tampon (le texte est coupe au besoin)
+		strncat (out, G_STRING((OFS_PARM0+i*3)), sizeof(out) - 1 - strlen(out));
 	}
 	return out;
 }
@@ -1805,7 +1806,16 @@ void PF_fputs (void)
 
 void PF_strcat (void)
 {
-	G_INT(OFS_RETURN) = PF_VarString(0) - pr_strings;	// texte temporaire : a utiliser tout de suite
+	// texte temporaire : a utiliser tout de suite. Il a ses propres tampons (4, utilises
+	// tour a tour) : avec celui de PF_VarString, "bprint (strcat (...))" lisait et
+	// ecrivait le meme texte en meme temps (debordement, plantage)
+	static char	buf[4][256];
+	static int	n;
+	char		*s = buf[n++ & 3];
+
+	strncpy (s, PF_VarString(0), sizeof(buf[0]) - 1);
+	s[sizeof(buf[0]) - 1] = 0;
+	G_INT(OFS_RETURN) = s - pr_strings;
 }
 
 void PF_stof (void)
