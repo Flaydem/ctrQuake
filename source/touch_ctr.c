@@ -48,6 +48,12 @@ u64 lastTap = 0;
 
 int shiftToggle = 0;
 
+// CS3DS: menu d'achat, voir a la fin du fichier
+#define BUY_WIDTH_TAP 264
+extern qboolean buymenu_open;
+static void BuyMenu_Update (void);
+static void BuyMenu_Tap (void);
+
 void Touch_Init(){
   tmode = TMODE_TOUCHPAD; //Start in touchpad Mode
   tfb = (u16*)gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
@@ -120,6 +126,7 @@ void Touch_Update(){
   if(hidKeysUp() & KEY_TOUCH && Sys_FloatTime() - tick < 0.3){
       Touch_ProcessTap();
   }
+  BuyMenu_Update();
 }
 
 void Touch_KeyboardToggle()
@@ -135,6 +142,10 @@ void Touch_KeyboardToggle()
 
 void Touch_ProcessTap()
 {
+  if(buymenu_open && touch.px < BUY_WIDTH_TAP){
+    BuyMenu_Tap();
+    return;
+  }
   if(touch.px > 268 && touch.py > 14 && touch.py < 226 && !keyboardToggled)
     Touch_SideBarTap();
   else if (touch.py > 62 && touch.py < 188 && touch.px > 12 && touch.px < 308 && keyboardToggled)
@@ -162,4 +173,164 @@ void Touch_KeyboardTap()
     Key_Event(key, true);
     lastKey = key;
   }
+}
+/*
+==============
+CS3DS : menu d'achat (game/buy.qc)
+
+Ouvert et ferme par la commande "achat" (touche T4). Dessine sur l'ecran du
+bas, a gauche des touches T1 a T5, avec la police de Quake. Un appui sur un
+article envoie "impulse N" au serveur, qui verifie (argent, equipe, zone et
+temps d'achat) et repond a l'ecran. Le serveur envoie dans cl.items : equipe
+CT, achat possible, casque, kit (game/match.qc, MatchPlayerFrame).
+Les prix sont recopies de game/weapon.qc et game/buy.qc.
+==============
+*/
+typedef struct
+{
+  char *name;
+  int price;
+  int team;		// 0 : les deux equipes, 1 : T, 2 : CT
+  int impulse;
+} buyitem_t;
+
+static buyitem_t buyitems[] = {
+  {"AK-47", 2700, 1, 41},
+  {"M4A4", 3100, 2, 42},
+  {"AWP", 4750, 0, 43},
+  {"MAC-10", 1050, 1, 44},
+  {"GILET", 650, 0, 50},
+  {"GILET + CASQUE", 1000, 0, 51},
+  {"KIT DE DESAMORCAGE", 400, 2, 52},
+};
+#define BUY_ITEMS	(sizeof(buyitems) / sizeof(buyitems[0]))
+#define BUY_WIDTH	264		// a droite : les touches T1 a T5
+#define BUY_TOP		32		// sous le titre
+#define BUY_ROW		41		// hauteur d'une ligne (bouton + marge)
+#define BUY_BUTTON	37
+
+qboolean buymenu_open;
+static int buy_list[BUY_ITEMS], buy_count;
+static int buy_money = -1, buy_items, buy_armor;	// etat affiche (redessine s'il change)
+
+static void Buy_Fill (int x0, int y0, int w, int h, u16 color)
+{
+  int x, y;
+  for (x = x0; x < x0 + w; x++)
+    for (y = y0; y < y0 + h; y++)
+      tfb[x*240 + (239 - y)] = color;
+}
+
+// texte avec la police de Quake (8x8, agrandie scale fois)
+static void Buy_Text (int x, int y, const char *s, u16 color, int scale)
+{
+  extern byte *draw_chars;
+  int i, j, c;
+  byte *src;
+
+  for ( ; *s ; s++, x += 8 * scale)
+  {
+    c = *s & 255;
+    src = draw_chars + ((c >> 4) << 10) + ((c & 15) << 3);
+    for (j = 0; j < 8; j++, src += 128)
+      for (i = 0; i < 8; i++)
+        if (src[i])
+          Buy_Fill (x + i * scale, y + j * scale, scale, scale, color);
+  }
+}
+
+static int Buy_Price (buyitem_t *it)
+{
+  // casque seul : 350 $ si le gilet est intact (game/buy.qc)
+  if (it->impulse == 51 && cl.stats[STAT_ARMOR] >= 100 && !(cl.items & IT_ARMOR2))
+    return 350;
+  return it->price;
+}
+
+static void BuyMenu_Draw (void)
+{
+  int i, y, team, price, can;
+  buyitem_t *it;
+  char str[32];
+  u16 name, cost;
+
+  buy_money = cl.stats[STAT_MONEY];
+  buy_items = cl.items;
+  buy_armor = cl.stats[STAT_ARMOR];
+  team = (cl.items & IT_INVULNERABILITY) ? 2 : 1;
+  can = (cl.items & IT_INVISIBILITY) != 0;
+
+  // articles de son equipe
+  buy_count = 0;
+  for (i = 0; i < BUY_ITEMS; i++)
+    if (!buyitems[i].team || buyitems[i].team == team)
+      buy_list[buy_count++] = i;
+
+  Buy_Fill (0, 0, BUY_WIDTH, 240, RGB8_to_565(24, 20, 16));
+  if (can)
+    Buy_Text (8, 8, "ACHAT", RGB8_to_565(230, 190, 80), 2);
+  else
+    Buy_Text (8, 12, "ACHAT IMPOSSIBLE", RGB8_to_565(220, 70, 60), 1);
+  sprintf (str, "%i $", buy_money);
+  Buy_Text (BUY_WIDTH - 8 - strlen(str) * 16, 8, str, RGB8_to_565(230, 190, 80), 2);
+
+  for (i = 0; i < buy_count; i++)
+  {
+    it = &buyitems[buy_list[i]];
+    price = Buy_Price (it);
+    y = BUY_TOP + i * BUY_ROW;
+    if (can && buy_money >= price)
+    {
+      name = RGB8_to_565(255, 255, 255);
+      cost = RGB8_to_565(230, 190, 80);
+    }
+    else
+    {
+      name = RGB8_to_565(110, 105, 100);
+      cost = RGB8_to_565(170, 60, 50);
+    }
+    Buy_Fill (6, y, BUY_WIDTH - 12, BUY_BUTTON, RGB8_to_565(60, 50, 38));
+    Buy_Text (14, y + 4, it->name, name, strlen(it->name) > 14 ? 1 : 2);
+    sprintf (str, "%i $", price);
+    Buy_Text (14, y + 24, str, cost, 1);
+  }
+}
+
+static void BuyMenu_Toggle_f (void)
+{
+  buymenu_open = !buymenu_open;
+  if (buymenu_open)
+    BuyMenu_Draw ();
+  else
+    Touch_DrawOverlay ();
+}
+
+void BuyMenu_Init (void)
+{
+  Cmd_AddCommand ("achat", BuyMenu_Toggle_f);
+}
+
+// a chaque image : ferme le menu quand l'achat n'est plus possible, le redessine
+// quand l'argent ou l'equipement change
+static void BuyMenu_Update (void)
+{
+  if (!buymenu_open)
+    return;
+  if (cls.state != ca_connected || ((buy_items & IT_INVISIBILITY) && !(cl.items & IT_INVISIBILITY)))
+  {
+    buymenu_open = false;
+    Touch_DrawOverlay ();
+    return;
+  }
+  if (cl.stats[STAT_MONEY] != buy_money || cl.items != buy_items || cl.stats[STAT_ARMOR] != buy_armor)
+    BuyMenu_Draw ();
+}
+
+static void BuyMenu_Tap (void)
+{
+  int row = (touch.py - BUY_TOP) / BUY_ROW;
+
+  if (touch.py < BUY_TOP || row >= buy_count || (touch.py - BUY_TOP) % BUY_ROW >= BUY_BUTTON)
+    return;
+  Cbuf_AddText (va ("impulse %i\n", buyitems[buy_list[row]].impulse));
 }

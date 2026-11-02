@@ -104,8 +104,12 @@ static void NetMouse_Move (void)
   V_StopPitchDrift ();
 }
 
+void BuyMenu_Init (void);	// CS3DS: menu d'achat (touch_ctr.c)
+extern qboolean buymenu_open;
+
 void IN_Init (void)
 {
+  BuyMenu_Init ();
   Cvar_RegisterVariable (&csensitivity);
   Cvar_RegisterVariable (&circlepadsensitivity);
   Cvar_RegisterVariable (&netmouse_sensitivity);
@@ -151,7 +155,7 @@ void IN_Move (usercmd_t *cmd)
     oldtouch = touch;
   }
 
-  else if(hidKeysHeld() & KEY_TOUCH && !keyboardToggled){
+  else if(hidKeysHeld() & KEY_TOUCH && !keyboardToggled && !buymenu_open){
     hidTouchRead(&touch);
     touch.px =  (touch.px + oldtouch.px) / 2;
     touch.py =  (touch.py + oldtouch.py) / 2;

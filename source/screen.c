@@ -447,7 +447,7 @@ health at the bottom left, magazine / reserve at the bottom right
 ==============
 */
 // CS3DS : noms des armes (numeros de game/weapon.qc)
-static char *cs_weapons[] = {"", "AK-47", "M4A4", "AWP", "MAC-10", "COUTEAU"};
+static char *cs_weapons[] = {"", "AK-47", "M4A4", "AWP", "MAC-10", "COUTEAU", "GLOCK-18", "USP-S"};
 
 // CS3DS : texte en or (deuxieme jeu de caracteres de Quake, +128)
 static void SCR_DrawGold (int x, int y, char *s)
@@ -519,7 +519,9 @@ void SCR_DrawHud (void)
 		return;		// spectateur : pas de PV ni de munitions
 
 	if (cl.items & IT_KEY2)			// ce joueur porte la bombe
-		SCR_DrawGold (8, y - 24, "BOMBE");
+		SCR_DrawGold (8, y - 36, "BOMBE");
+	if (cl.items & IT_ARMOR3)		// kit de desamorcage (CT)
+		SCR_DrawGold (8, y - 36, "KIT");
 
 	// "PV" in the gold alternate charset (+128), then the value
 	Draw_Character (8, y, 'P' + 128);
@@ -527,9 +529,18 @@ void SCR_DrawHud (void)
 	sprintf (str, "%i", cl.stats[STAT_HEALTH]);
 	Draw_String (32, y, str);
 
-	// CS3DS : nom de l'arme en main (game/weapon.qc l'envoie dans .weapon, 1 a 5)
+	// CS3DS : gilet (kevlar), avec ou sans casque (game/buy.qc), au-dessus de l'argent
+	if (cl.stats[STAT_ARMOR] > 0)
+	{
+		char *armor = (cl.items & IT_ARMOR2) ? "CASQUE" : "GILET";
+		SCR_DrawGold (8, y - 24, armor);
+		sprintf (str, "%i", cl.stats[STAT_ARMOR]);
+		Draw_String (8 + strlen(armor)*8 + 8, y - 24, str);
+	}
+
+	// CS3DS : nom de l'arme en main (game/weapon.qc l'envoie dans .weapon, 1 a 7)
 	t = cl.stats[STAT_ACTIVEWEAPON];
-	if (t > 0 && t < 6)
+	if (t > 0 && t < 8)
 		SCR_DrawGold (vid.width - strlen(cs_weapons[t])*8 - 8, y - 12, cs_weapons[t]);
 	if (t == 5)
 		return;		// couteau : pas de munitions
