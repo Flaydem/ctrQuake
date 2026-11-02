@@ -257,8 +257,8 @@ static void BuyMenu_Draw (void)
   buy_money = cl.stats[STAT_MONEY];
   buy_items = cl.items;
   buy_armor = cl.stats[STAT_ARMOR];
-  team = (cl.items & IT_INVULNERABILITY) ? 2 : 1;
-  can = (cl.items & IT_INVISIBILITY) != 0;
+  team = (cl.items & IT_ARMOR1) ? 2 : 1;
+  can = (cl.items & IT_SUPERHEALTH) != 0;
 
   // articles de son equipe
   buy_count = 0;
@@ -316,7 +316,7 @@ static void BuyMenu_Update (void)
 {
   if (!buymenu_open)
     return;
-  if (cls.state != ca_connected || ((buy_items & IT_INVISIBILITY) && !(cl.items & IT_INVISIBILITY)))
+  if (cls.state != ca_connected || ((buy_items & IT_SUPERHEALTH) && !(cl.items & IT_SUPERHEALTH)))
   {
     buymenu_open = false;
     Touch_DrawOverlay ();
