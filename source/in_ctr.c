@@ -66,6 +66,14 @@ static void NetMouse_Init (void)
     Con_Printf ("Souris PC : impossible d'ouvrir le port %i\n", NETMOUSE_PORT);
 }
 
+// CS3DS: with the AWP scope (fov 40 or 10, game/weapon.qc) aiming slows down
+// in proportion, like CS: the crosshair moves as far on screen as without zoom
+extern cvar_t scr_fov;
+static float Aim_ZoomScale (void)
+{
+  return scr_fov.value < 90 ? scr_fov.value / 90 : 1;
+}
+
 static void NetMouse_Move (void)
 {
   unsigned char packet[8];
@@ -91,8 +99,8 @@ static void NetMouse_Move (void)
 
   if (key_dest != key_game || (!dx && !dy))
     return;
-  cl.viewangles[YAW] -= dx * netmouse_sensitivity.value * 0.022;
-  cl.viewangles[PITCH] += dy * netmouse_sensitivity.value * 0.022;
+  cl.viewangles[YAW] -= dx * netmouse_sensitivity.value * 0.022 * Aim_ZoomScale ();
+  cl.viewangles[PITCH] += dy * netmouse_sensitivity.value * 0.022 * Aim_ZoomScale ();
   V_StopPitchDrift ();
 }
 
@@ -147,8 +155,8 @@ void IN_Move (usercmd_t *cmd)
     hidTouchRead(&touch);
     touch.px =  (touch.px + oldtouch.px) / 2;
     touch.py =  (touch.py + oldtouch.py) / 2;
-    cl.viewangles[YAW] -= (touch.px - oldtouch.px) * sensitivity.value/2;
-    cl.viewangles[PITCH] += (touch.py - oldtouch.py) * sensitivity.value/2;
+    cl.viewangles[YAW] -= (touch.px - oldtouch.px) * sensitivity.value/2 * Aim_ZoomScale ();
+    cl.viewangles[PITCH] += (touch.py - oldtouch.py) * sensitivity.value/2 * Aim_ZoomScale ();
     oldtouch = touch;
     V_StopPitchDrift ();
   }

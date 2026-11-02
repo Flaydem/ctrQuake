@@ -446,11 +446,34 @@ CS3DS: small CS-like HUD replacing Quake's status bar (use viewsize 120):
 health at the bottom left, magazine / reserve at the bottom right
 ==============
 */
+// CS3DS : noms des armes (numeros de game/weapon.qc)
+static char *cs_weapons[] = {"", "AK-47", "M4A4", "AWP", "MAC-10", "COUTEAU"};
+
 // CS3DS : texte en or (deuxieme jeu de caracteres de Quake, +128)
 static void SCR_DrawGold (int x, int y, char *s)
 {
 	for ( ; *s ; s++, x += 8)
 		Draw_Character (x, y, *s | 128);
+}
+
+// CS3DS : lunette de l'AWP (game/weapon.qc baisse le champ de vision, "fov") :
+// tout est noir autour d'un cercle, avec deux traits noirs qui se croisent au centre
+static void SCR_DrawScope (void)
+{
+	int	cx, cy, r, y, dy, w;
+
+	cx = scr_vrect.x + scr_vrect.width / 2;
+	cy = scr_vrect.y + scr_vrect.height / 2;
+	r = scr_vrect.height / 2;
+	for (y = scr_vrect.y ; y < scr_vrect.y + scr_vrect.height ; y++)
+	{
+		dy = y - cy;
+		w = (dy * dy < r * r) ? (int)sqrt (r * r - dy * dy) : 0;
+		Draw_Fill (scr_vrect.x, y, cx - w - scr_vrect.x, 1, 0);
+		Draw_Fill (cx + w, y, scr_vrect.x + scr_vrect.width - cx - w, 1, 0);
+	}
+	Draw_Fill (cx - r, cy, 2 * r, 1, 0);
+	Draw_Fill (cx, cy - r, 1, 2 * r, 0);
 }
 
 void SCR_DrawHud (void)
@@ -460,6 +483,9 @@ void SCR_DrawHud (void)
 
 	if (!scr_hud.value || cls.state != ca_connected)
 		return;
+
+	if (scr_fov.value < 60 && cl.stats[STAT_HEALTH] > 0)
+		SCR_DrawScope ();
 
 	// CS3DS : en bas au centre (le haut est pris par les messages), score et chrono de la manche (game/match.qc
 	// les envoie dans ammo_nails, ammo_cells, ammo_rockets et des bits de items)
@@ -500,6 +526,13 @@ void SCR_DrawHud (void)
 	Draw_Character (16, y, 'V' + 128);
 	sprintf (str, "%i", cl.stats[STAT_HEALTH]);
 	Draw_String (32, y, str);
+
+	// CS3DS : nom de l'arme en main (game/weapon.qc l'envoie dans .weapon, 1 a 5)
+	t = cl.stats[STAT_ACTIVEWEAPON];
+	if (t > 0 && t < 6)
+		SCR_DrawGold (vid.width - strlen(cs_weapons[t])*8 - 8, y - 12, cs_weapons[t]);
+	if (t == 5)
+		return;		// couteau : pas de munitions
 
 	// STAT_AMMO = magazine (currentammo), STAT_SHELLS = reserve (ammo_shells)
 	sprintf (str, "%i / %i", cl.stats[STAT_AMMO], cl.stats[STAT_SHELLS]);
