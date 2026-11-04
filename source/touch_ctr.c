@@ -42,7 +42,7 @@ char lastKey = 0;
 int tmode;
 u16* tfb;
 touchPosition oldtouch, touch;
-u64 tick;
+double tick;	// CS3DS: moment du debut de l'appui (secondes) ; en entier (u64), il etait arrondi a la seconde
 
 u64 lastTap = 0;
 
