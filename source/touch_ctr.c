@@ -53,6 +53,7 @@ int shiftToggle = 0;
 extern qboolean buymenu_open;
 static void BuyMenu_Update (void);
 static void BuyMenu_Tap (void);
+static void Radar_Update (void);	// CS3DS: radar, a la fin du fichier
 
 void Touch_Init(){
   tmode = TMODE_TOUCHPAD; //Start in touchpad Mode
@@ -127,6 +128,7 @@ void Touch_Update(){
       Touch_ProcessTap();
   }
   BuyMenu_Update();
+  Radar_Update();
 }
 
 void Touch_KeyboardToggle()
@@ -333,4 +335,180 @@ static void BuyMenu_Tap (void)
   if (touch.py < BUY_TOP || row >= buy_count || (touch.py - BUY_TOP) % BUY_ROW >= BUY_BUTTON)
     return;
   Cbuf_AddText (va ("impulse %i\n", buyitems[buy_list[row]].impulse));
+}
+
+/*
+==============
+CS3DS: radar
+
+La map vue de dessus (maps/<map>.rad, fabriquee par scripts/make_radar.py), sur
+l'ecran du bas a gauche des touches T1 a T5, nord en haut. Toi : point blanc
+avec ta direction ; tes coequipiers : toujours ; les ennemis : seulement quand
+ton equipe les voit (game/perception.qc, champ radar_time) ; la bombe : pour
+les T, et pour tout le monde une fois posee ; les sites A et B.
+Le serveur tourne sur la console : le radar lit directement ses entites (meme
+les joueurs caches derriere un mur, que le client ne recoit pas).
+==============
+*/
+#define RADAR_X		39		// coin haut gauche du radar sur l'ecran du bas
+#define RADAR_Y		24
+#define RADAR_MAX	256		// taille maximale de l'image (pixels)
+#define RADAR_HOLD	1.0		// un ennemi repere reste affiche 1 s
+#define RADAR_RATE	0.1		// redessine 10 fois par seconde
+
+static byte radar_file[20 + RADAR_MAX * RADAR_MAX * 2 + 1] __attribute__((aligned(4)));
+static int radar_size;			// 0 : pas de radar pour cette map
+static float radar_x0, radar_y0, radar_step;	// coin haut gauche (nord-ouest) et unites par pixel
+static char radar_map[64];
+static vec3_t radar_site[2];
+static qboolean radar_has_site[2];
+static qboolean radar_shown;
+static double radar_next;
+
+static void Radar_Load (void)
+{
+  int i;
+  edict_t *e;
+  char *name;
+
+  strncpy (radar_map, sv.name, sizeof(radar_map) - 1);
+  radar_size = 0;
+  if (COM_LoadStackFile (va("maps/%s.rad", sv.name), radar_file, sizeof(radar_file)) != radar_file
+    || memcmp (radar_file, "RAD1", 4))
+    return;
+  memcpy (&i, radar_file + 4, 4);
+  memcpy (&radar_x0, radar_file + 8, 4);
+  memcpy (&radar_y0, radar_file + 12, 4);
+  memcpy (&radar_step, radar_file + 16, 4);
+  if (i <= 0 || i > RADAR_MAX || radar_step <= 0)
+    return;
+  radar_size = i;
+
+  // sites de pose (entites info_site_a et info_site_b de la map)
+  radar_has_site[0] = radar_has_site[1] = false;
+  for (i = 1; i < sv.num_edicts; i++)
+  {
+    e = EDICT_NUM(i);
+    if (e->free)
+      continue;
+    name = pr_strings + e->v.classname;
+    if (!strcmp (name, "info_site_a") || !strcmp (name, "info_site_b"))
+    {
+      VectorCopy (e->v.origin, radar_site[name[10] == 'b']);
+      radar_has_site[name[10] == 'b'] = true;
+    }
+  }
+}
+
+// position sur l'ecran du bas ; false si hors du radar
+static qboolean Radar_Pos (vec3_t org, int *x, int *y)
+{
+  *x = (int)((org[0] - radar_x0) / radar_step);
+  *y = (int)((radar_y0 - org[1]) / radar_step);
+  if (*x < 3 || *y < 3 || *x >= radar_size - 3 || *y >= radar_size - 3)
+    return false;
+  *x += RADAR_X;
+  *y += RADAR_Y;
+  return true;
+}
+
+// point de couleur avec un contour noir
+static void Radar_Dot (vec3_t org, u16 color)
+{
+  int x, y;
+
+  if (!Radar_Pos (org, &x, &y))
+    return;
+  Buy_Fill (x - 2, y - 2, 5, 5, RGB8_to_565(0, 0, 0));
+  Buy_Fill (x - 1, y - 1, 3, 3, color);
+}
+
+static void Radar_Draw (void)
+{
+  int i, x, y, k, myteam, carrier, planted;
+  edict_t *me, *e;
+  eval_t *val;
+  u16 *img = (u16 *)(radar_file + 20), mate, white = RGB8_to_565(255, 255, 255);
+  u16 bomb = RGB8_to_565(255, 110, 0);
+  float yaw;
+
+  // fond : la map
+  for (x = 0; x < radar_size; x++)
+    for (y = 0; y < radar_size; y++)
+      tfb[(RADAR_X + x)*240 + (239 - RADAR_Y - y)] = img[y * radar_size + x];
+
+  // sites A et B (lettres dorees avec une ombre)
+  for (i = 0; i < 2; i++)
+    if (radar_has_site[i] && Radar_Pos (radar_site[i], &x, &y))
+    {
+      Buy_Text (x - 3, y - 3, i ? "B" : "A", RGB8_to_565(0, 0, 0), 1);
+      Buy_Text (x - 4, y - 4, i ? "B" : "A", RGB8_to_565(230, 190, 80), 1);
+    }
+
+  me = EDICT_NUM(cl.viewentity);
+  myteam = (int)me->v.team;		// 1 : T, 2 : CT (game/client.qc)
+  mate = myteam == 2 ? RGB8_to_565(90, 170, 255) : RGB8_to_565(240, 210, 60);
+
+  // la bombe, tombee ou posee (entite "bomb", game/match.qc ; posee : elle eclaire)
+  for (i = svs.maxclients + 1; i < sv.num_edicts; i++)
+  {
+    e = EDICT_NUM(i);
+    if (e->free || strcmp (pr_strings + e->v.classname, "bomb"))
+      continue;
+    planted = ((int)e->v.effects & EF_DIMLIGHT) != 0;
+    if ((myteam == 1 || planted) && (!planted || (int)(realtime * 4) & 1))	// posee : clignote
+      Radar_Dot (e->v.origin, bomb);
+  }
+
+  // les joueurs
+  for (i = 1; i <= svs.maxclients; i++)
+  {
+    e = EDICT_NUM(i);
+    if (e->free || e == me || e->v.health <= 0 || strcmp (pr_strings + e->v.classname, "player"))
+      continue;
+    if ((int)e->v.team == myteam)
+    {
+      carrier = myteam == 1 && ((int)e->v.items & IT_KEY2);	// porteur de la bombe
+      Radar_Dot (e->v.origin, carrier ? bomb : mate);
+    }
+    else
+    {
+      val = GetEdictFieldValue (e, "radar_time");
+      if (val && val->_float > 0 && sv.time - val->_float < RADAR_HOLD)
+        Radar_Dot (e->v.origin, RGB8_to_565(230, 50, 40));
+    }
+  }
+
+  // toi, par-dessus : point blanc et trait dans la direction du regard
+  if (me->v.health > 0 && Radar_Pos (me->v.origin, &x, &y))
+  {
+    yaw = cl.viewangles[YAW] * M_PI / 180;
+    for (k = 3; k <= 7; k++)
+      Buy_Fill (x + (int)(cos(yaw) * k) - 1, y - (int)(sin(yaw) * k) - 1, 2, 2, white);
+    Buy_Fill (x - 2, y - 2, 5, 5, RGB8_to_565(0, 0, 0));
+    Buy_Fill (x - 1, y - 1, 3, 3, (myteam == 1 && ((int)me->v.items & IT_KEY2)) ? bomb : white);
+  }
+}
+
+// a chaque image : affiche le radar quand on joue (sauf menu d'achat ou clavier ouverts)
+static void Radar_Update (void)
+{
+  qboolean show;
+
+  show = sv.active && cls.state == ca_connected && !buymenu_open && !keyboardToggled
+    && cl.viewentity >= 1 && cl.viewentity <= svs.maxclients;
+  if (show && strcmp (sv.name, radar_map))
+    Radar_Load ();		// nouvelle map
+  if (!show || !radar_size)
+  {
+    if (radar_shown && !buymenu_open && !keyboardToggled)
+      Touch_DrawOverlay ();		// efface le radar
+    radar_shown = false;
+    return;
+  }
+  if (radar_shown && realtime < radar_next)
+    return;
+  radar_next = realtime + RADAR_RATE;
+  radar_shown = true;
+  Radar_Draw ();
 }
